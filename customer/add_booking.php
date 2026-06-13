@@ -41,7 +41,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_booking'])) {
     }
 }
 
-// 3. Fetch All Available Halls (We select the capacity so JavaScript can read it)
+// 3. Fetch All Available Halls
 $halls_query = "SELECT hall_id, hall_name, hall_capacity FROM hall WHERE status = 'Available'";
 $halls_result = $conn->query($halls_query);
 

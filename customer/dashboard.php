@@ -51,14 +51,13 @@ $conn->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer Dashboard - Event Hall Booking System</title>
     
-    <!-- FIX: Correct relative path going up one level to look inside assets/css -->
     <link rel="stylesheet" href="../assets/css/dashboard.css">
 </head>
 <body>
 
 <div class="app-container">
     
-    <!-- LEFT SIDEBAR COMPONENT (Matches drawing in sketch perfectly) -->
+    <!-- LEFT SIDEBAR COMPONENT-->
     <aside class="sidebar">
         <div class="profile-section">
             <div class="avatar-placeholder">
@@ -126,7 +125,7 @@ $conn->close();
         
         <h2 class="section-title">Dashboard</h2>
         
-        <!-- COUNTER METRICS COMPONENT ROW (Tall card layout matching drawing) -->
+        <!-- COUNTER METRICS COMPONENT ROW -->
         <div class="stats-row">
             <!-- Card 1: Calendar -->
             <div class="stat-card">
@@ -164,7 +163,7 @@ $conn->close();
         
         <h2 class="section-title">Quick Actions</h2>
         
-        <!-- QUICK ACTION ACTIONABLE CARDS (Laid out horizontally matching drawing) -->
+        <!-- QUICK ACTION ACTIONABLE CARDS -->
         <div class="actions-row">
             <!-- Add Booking Action -->
             <a href="add_booking.php" class="action-card">
