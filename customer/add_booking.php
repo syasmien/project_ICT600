@@ -26,15 +26,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_booking'])) {
 
     if (!empty($event_date) && $event_date >= $today && !empty($event_type) && $guest_count > 0 && $hall_id > 0) {
         
-        $stmt = $conn->prepare("INSERT INTO booking (cust_id, hall_id, event_type, event_date, guest_count, status) VALUES (?, ?, ?, ?, ?, 'Pending')");
-        $stmt->bind_param("iissi", $current_cust_id, $hall_id, $event_type, $event_date, $guest_count);
+        // CRITICAL SAFEGUARD: Verify if this hall is already booked on this day by another reservation
+        $check_stmt = $conn->prepare("SELECT COUNT(*) as count FROM booking WHERE hall_id = ? AND event_date = ? AND status != 'Cancelled'");
+        $check_stmt->bind_param("is", $hall_id, $event_date);
+        $check_stmt->execute();
+        $check_result = $check_stmt->get_result()->fetch_assoc();
+        $check_stmt->close();
 
-        if ($stmt->execute()) {
-            $message = "<div class='alert success'>🎉 Booking request submitted successfully! Your request is pending staff approval.</div>";
+        if ($check_result['count'] > 0) {
+            // Collision detected! Stop submission.
+            $message = "<div class='alert error'>❌ Double-Booking Warning: This hall is already reserved on " . date('d M Y', strtotime($event_date)) . ". Please select a different date or hall.</div>";
         } else {
-            $message = "<div class='alert error'>❌ Error saving booking: " . $conn->error . "</div>";
+            $stmt = $conn->prepare("INSERT INTO booking (cust_id, hall_id, event_type, event_date, guest_count, status) VALUES (?, ?, ?, ?, ?, 'Pending')");
+            $stmt->bind_param("iissi", $current_cust_id, $hall_id, $event_type, $event_date, $guest_count);
+
+            if ($stmt->execute()) {
+                $message = "<div class='alert success'>🎉 Booking request submitted successfully! Your request is pending staff approval.</div>";
+            } else {
+                $message = "<div class='alert error'>❌ Error saving booking: " . $conn->error . "</div>";
+            }
+            $stmt->close();
         }
-        $stmt->close();
     } else {
         $message = "<div class='alert error'>❌ Please fill in all fields correctly. (Note: Past dates are not allowed).</div>";
     }
@@ -48,7 +60,7 @@ $halls_result = $conn->query($halls_query);
 $availability_query = "SELECT b.event_date, b.event_type, h.hall_name 
                        FROM booking b 
                        JOIN hall h ON b.hall_id = h.hall_id 
-                       WHERE b.event_date >= CURDATE() 
+                       WHERE b.event_date >= CURDATE() AND b.status != 'Cancelled'
                        ORDER BY b.event_date ASC";
 $availability_result = $conn->query($availability_query);
 ?>
@@ -60,6 +72,22 @@ $availability_result = $conn->query($availability_query);
     <title>Create Booking - Event Hall Booking System</title>
     
     <link rel="stylesheet" href="../assets/css/style.css">
+
+    <style>
+        svg {
+            max-width: 50px !important;
+            max-height: 50px !important;
+            display: inline-block;
+        }
+        .avatar-placeholder svg {
+            max-width: 45px !important;
+            max-height: 45px !important;
+        }
+        .nav-item a svg {
+            max-width: 20px !important;
+            max-height: 20px !important;
+        }
+    </style>
 </head>
 <body>
 

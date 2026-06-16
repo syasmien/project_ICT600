@@ -51,7 +51,7 @@ $result = $stmt->get_result();
     <!-- Relative link pointing back to assets/css/style.css -->
     <link rel="stylesheet" href="../assets/css/style.css">
     
-    <!-- SAFEGUARD: Inline style rules to prevent SVGs from expanding if style.css fails to load -->
+    <!-- SAFEGUARD: Embedded style rules to instantly override default inputs and buttons -->
     <style>
         svg {
             max-width: 50px !important;
@@ -66,13 +66,100 @@ $result = $stmt->get_result();
             max-width: 20px !important;
             max-height: 20px !important;
         }
+
+        /* Clean Header & Styled Filter/Search bar matching design */
+        .booking-history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .filter-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .filter-label {
+            font-weight: 800;
+            font-size: 14px;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        #filter_input {
+            padding: 10px 15px;
+            border: 2px solid #0f172a;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            width: 280px;
+            outline: none;
+            background-color: #ffffff;
+            color: #0f172a;
+            transition: all 0.2s ease;
+        }
+        #filter_input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        /* Table actions cell container */
+        .actions-cell-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        /* Styled EDIT action button */
+        .btn-edit-action {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            border: 2px solid #0f172a;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        .btn-edit-action:hover {
+            background-color: #bae6fd;
+            transform: translateY(-2px);
+        }
+
+        /* Custom Styled CANCEL action button (No longer default browser style) */
+        .btn-cancel-action {
+            background-color: #fee2e2; /* Red accent matching warnings */
+            color: #b91c1c;
+            border: 2px solid #0f172a;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-block;
+            text-align: center;
+        }
+        .btn-cancel-action:hover {
+            background-color: #fca5a5;
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body>
 
 <div class="app-container">
     
-    <!-- LEFT SIDEBAR COMPONENT (Matches dashboard and booking layout) -->
+    <!-- LEFT SIDEBAR COMPONENT -->
     <aside class="sidebar">
         <div class="profile-section">
             <div class="avatar-placeholder">
@@ -135,7 +222,7 @@ $result = $stmt->get_result();
         <div class="booking-history-header">
             <h2 class="section-title">Booking History</h2>
             
-            <!-- Real-time Filter Bar Layout matching wireframe (image_de81e9.png) -->
+            <!-- Real-time Filter Bar Layout matching wireframe -->
             <div class="filter-wrapper">
                 <label for="filter_input" class="filter-label">Filter By :</label>
                 <input type="text" id="filter_input" placeholder="Search ID, hall name, status..." onkeyup="filterBookingsTable()">
@@ -176,11 +263,16 @@ $result = $stmt->get_result();
                                     </td>
                                     <td>
                                         <?php if ($row['status'] == 'Pending'): ?>
-                                            <!-- Cancellable form action -->
-                                            <form action="booking_status.php" method="POST" onsubmit="return confirm('Are you sure you want to cancel booking #<?php echo $row['booking_id']; ?>?');">
-                                                <input type="hidden" name="booking_id" value="<?php echo $row['booking_id']; ?>">
-                                                <button type="submit" name="cancel_booking" class="btn-cancel-action">Cancel</button>
-                                            </form>
+                                            <div class="actions-cell-wrapper">
+                                                <!-- Link to Update Booking Form -->
+                                                <a href="update_booking.php?booking_id=<?php echo $row['booking_id']; ?>" class="btn-edit-action">Edit</a>
+                                                
+                                                <!-- Cancellable form action with beautifully styled custom button -->
+                                                <form action="booking_status.php" method="POST" onsubmit="return confirm('Are you sure you want to cancel booking #<?php echo $row['booking_id']; ?>?');" style="display: inline;">
+                                                    <input type="hidden" name="booking_id" value="<?php echo $row['booking_id']; ?>">
+                                                    <button type="submit" name="cancel_booking" class="btn-cancel-action">Cancel</button>
+                                                </form>
+                                            </div>
                                         <?php else: ?>
                                             <span class="action-none">-</span>
                                         <?php endif; ?>
@@ -196,7 +288,7 @@ $result = $stmt->get_result();
                 </table>
             </div>
             
-            <!-- Wireframe Navigation Pagination (image_de81e9.png) -->
+            <!-- Wireframe Navigation Pagination -->
             <div class="pagination-container" id="pagination_container">
                 <button class="pagination-btn" onclick="goToPage('first')" title="First Page">&laquo;</button>
                 <button class="pagination-btn" onclick="goToPage('prev')" title="Previous Page">&lsaquo;</button>
@@ -289,7 +381,7 @@ $result = $stmt->get_result();
         });
     }
 
-    // Dynamic rendering matching the `<< < 1 2 3 > >>` wireframe block
+    // Dynamic rendering matching the pagination block
     function renderPaginationControls() {
         const pageNumbersContainer = document.getElementById("page_numbers");
         pageNumbersContainer.innerHTML = "";
