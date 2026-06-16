@@ -38,7 +38,7 @@ if (isset($_POST['login'])) {
             $_SESSION['staff_id'] = $row['staff_id'];
             $_SESSION['name'] = $row['staff_name'];
 
-            header("Location: ../staff/dashboard.php");
+            header("Location: ../staff/staff_dashboard.php");
             exit();
         } else {
             $error = "Invalid staff login details!";
