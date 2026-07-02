@@ -1,5 +1,15 @@
 <?php
-// 1. Database Connection Configuration
+session_start();
+
+// Redirect to login if not authenticated
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../auth/login.php");
+    exit();
+}
+
+$current_cust_id = $_SESSION['user_id'];
+
+// Database Connection
 $host = "localhost";
 $username = "root"; 
 $password = "";     
@@ -11,185 +21,234 @@ if ($conn->connect_error) {
     die("Database Connection Failed: " . $conn->connect_error);
 }
 
-// Fixed mock account customer identifier matching system testing profiles
-$current_cust_id = 1; 
+// Query Statistics for CURRENT user
+$total_query = $conn->prepare("SELECT COUNT(*) as total FROM booking WHERE cust_id = ?");
+$total_query->bind_param("i", $current_cust_id);
+$total_query->execute();
+$total_bookings = $total_query->get_result()->fetch_assoc()['total'];
 
-// 2. Query Statistics Counters from target database structures
-// Total Bookings Metric
-$total_query = "SELECT COUNT(*) as total FROM booking WHERE cust_id = ?";
-$stmt = $conn->prepare($total_query);
-$stmt->bind_param("i", $current_cust_id);
-$stmt->execute();
-$total_result = $stmt->get_result()->fetch_assoc();
-$total_bookings = $total_result['total'] ?? 0;
-$stmt->close();
+$pending_query = $conn->prepare("SELECT COUNT(*) as total FROM booking WHERE cust_id = ? AND status = 'Pending'");
+$pending_query->bind_param("i", $current_cust_id);
+$pending_query->execute();
+$pending_bookings = $pending_query->get_result()->fetch_assoc()['total'];
 
-// Pending Bookings Metric
-$pending_query = "SELECT COUNT(*) as total FROM booking WHERE cust_id = ? AND status = 'Pending'";
-$stmt = $conn->prepare($pending_query);
-$stmt->bind_param("i", $current_cust_id);
-$stmt->execute();
-$pending_result = $stmt->get_result()->fetch_assoc();
-$pending_bookings = $pending_result['total'] ?? 0;
-$stmt->close();
+$approved_query = $conn->prepare("SELECT COUNT(*) as total FROM booking WHERE cust_id = ? AND status = 'Approved'");
+$approved_query->bind_param("i", $current_cust_id);
+$approved_query->execute();
+$approved_bookings = $approved_query->get_result()->fetch_assoc()['total'];
 
-// Approved Bookings Metric
-$approved_query = "SELECT COUNT(*) as total FROM booking WHERE cust_id = ? AND status = 'Approved'";
-$stmt = $conn->prepare($approved_query);
-$stmt->bind_param("i", $current_cust_id);
-$stmt->execute();
-$approved_result = $stmt->get_result()->fetch_assoc();
-$approved_bookings = $approved_result['total'] ?? 0;
-$stmt->close();
-
-$conn->close();
+// Fetch the most recent 3 booking entries
+$recent_bookings_query = $conn->prepare("SELECT b.booking_id, h.hall_name, b.event_date, b.status 
+                                        FROM booking b 
+                                        JOIN hall h ON b.hall_id = h.hall_id 
+                                        WHERE b.cust_id = ? 
+                                        ORDER BY b.booking_id DESC LIMIT 3");
+$recent_bookings_query->bind_param("i", $current_cust_id);
+$recent_bookings_query->execute();
+$recent_bookings_result = $recent_bookings_query->get_result();
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Customer Dashboard - Event Hall Booking System</title>
+    <title>Customer Dashboard - HallBook</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/dashboard.css">
     
-    <link rel="stylesheet" href="../assets/css/dashboard.css">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --sidebar-bg: #1e293b;
+            --bg-color: #f4f7f6;
+            --text-main: #334155;
+            --white: #ffffff;
+            --border-color: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); }
+        .layout { display: flex; min-height: 100vh; }
+
+        .sidebar {
+            width: 260px;
+            background: var(--sidebar-bg);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 24px 20px;
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+        }
+
+        .sidebar-brand { font-weight: 700; font-size: 1.25rem; margin-bottom: 40px; display: flex; align-items: center; gap: 10px; color: white; text-decoration: none; }
+        .sidebar-brand-icon { background-color: var(--primary); width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; transform: rotate(45deg); }
+        .sidebar-brand-icon span { transform: rotate(-45deg); }
+        
+        .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .nav-item { color: #94a3b8; text-decoration: none; padding: 12px 16px; border-radius: 8px; font-weight: 500; }
+        .nav-item:hover, .nav-item.active { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+
+        .sidebar-footer { margin-top: auto; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 20px; }
+        .staff-info { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+        .staff-avatar { width: 40px; height: 40px; background: #2563eb; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+        .staff-name { font-weight: 600; color: white; }
+
+        .logout-btn { width: 100%; padding: 12px; background: rgba(239, 68, 68, 0.15); color: #f87171; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2); cursor: pointer; font-weight: 600; }
+        .logout-btn:hover { background: #ef4444; color: white; }
+
+        .main-content { margin-left: 260px; flex: 1; padding: 40px; }
+        .topbar { margin-bottom: 30px; }
+        .page-title { font-size: 1.75rem; font-weight: 700; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 32px; }
+        .stat-card { background: white; padding: 24px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        .stat-card h3 { font-size: 0.9rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; }
+        .stat-card p { font-size: 2rem; font-weight: 700; color: #1e293b; }
+
+        .dashboard-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }
+        .grid-card { background: white; padding: 24px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        .grid-card h3 { font-size: 1.1rem; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { background-color: #f8fafc; color: #64748b; font-weight: 600; padding: 12px; text-transform: uppercase; border-bottom: 2px solid var(--border-color); font-size: 0.8rem; }
+        td { padding: 12px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; }
+
+        .badge { padding: 4px 10px; border-radius: 20px; font-weight: 600; font-size: 0.75rem; }
+        .badge-approved { background: #dcfce7; color: #15803d; }
+        .badge-pending { background: #fef3c7; color: #b45309; }
+        .badge-cancelled { background: #fee2e2; color: #b91c1c; }
+
+        .quick-actions { display: flex; flex-direction: column; gap: 12px; }
+        .action-link { display: flex; align-items: center; gap: 12px; padding: 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border-color); text-decoration: none; color: #1e293b; font-weight: 600; transition: all 0.2s; }
+        .action-link:hover { background: #f1f5f9; border-color: #cbd5e1; }
+        .action-icon { background: var(--primary); color: white; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); align-items: center; justify-content: center; z-index: 1000; }
+        .modal.open { display: flex; }
+        .modal-box { background: white; padding: 32px; border-radius: 12px; text-align: center; max-width: 400px; width: 90%; }
+        .modal-actions { display: flex; gap: 12px; margin-top: 20px; }
+        .btn { padding: 12px; border-radius: 8px; cursor: pointer; flex: 1; border: none; }
+        .btn-secondary { background: #f1f5f9; color: #475569; }
+        .btn-danger { background: #ef4444; color: white; }
+    </style>
 </head>
 <body>
 
-<div class="app-container">
-    
-    <!-- LEFT SIDEBAR COMPONENT-->
+<div class="layout">
     <aside class="sidebar">
-        <div class="profile-section">
-            <div class="avatar-placeholder">
-                <!-- Clean profile vector icon -->
-                <svg viewBox="0 0 24 24">
-                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5-4-8-4z"/>
-                </svg>
-            </div>
-            <div class="profile-role">Customer</div>
-        </div>
-        
-        <nav class="nav-menu">
-            <ul>
-                <li class="nav-item active">
-                    <a href="dashboard.php">
-                        <!-- Dashboard Icon SVG -->
-                        <svg viewBox="0 0 24 24">
-                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
-                        </svg>
-                        DASHBOARD
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="add_booking.php">
-                        <!-- Add Booking Icon SVG -->
-                        <svg viewBox="0 0 24 24">
-                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                        </svg>
-                        ADD BOOKING
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#">
-                        <!-- Booking Status Icon SVG -->
-                        <svg viewBox="0 0 24 24">
-                            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-                        </svg>
-                        BOOKING STATUS
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#">
-                        <!-- Profile Icon SVG -->
-                        <svg viewBox="0 0 24 24">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-                        </svg>
-                        PROFILE
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#">
-                        <!-- Logout Icon SVG -->
-                        <svg viewBox="0 0 24 24">
-                            <path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/>
-                        </svg>
-                        LOGOUT
-                    </a>
-                </li>
-            </ul>
+        <a href="dashboard.php" class="sidebar-brand">
+            <div class="sidebar-brand-icon"><span>♦</span></div>
+            HallBook
+        </a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.php" class="nav-item active">Dashboard</a>
+            <a href="add_booking.php" class="nav-item">Add Booking</a>
+            <a href="booking_status.php" class="nav-item">Booking Status</a>
+            <a href="profile.php" class="nav-item">Profile</a>
         </nav>
+        <div class="sidebar-footer">
+            <div class="staff-info">
+                <div class="staff-avatar">C</div>
+                <div class="staff-details">
+                    <span class="staff-name"><?= htmlspecialchars($_SESSION['user_name']) ?></span>
+                </div>
+            </div>
+            <button class="logout-btn" onclick="openLogoutModal()">Logout</button>
+        </div>
     </aside>
-    
-    <!-- MAIN APPLICATION WORKSPACE -->
+
     <main class="main-content">
-        
-        <h2 class="section-title">Dashboard</h2>
-        
-        <!-- COUNTER METRICS COMPONENT ROW -->
-        <div class="stats-row">
-            <!-- Card 1: Calendar -->
+        <div class="topbar">
+            <h1 class="page-title">Welcome back, <?= htmlspecialchars($_SESSION['user_name']) ?>!</h1>
+        </div>
+
+        <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-icon-wrapper">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/>
-                    </svg>
-                    <div class="stat-value"><?php echo $total_bookings; ?></div>
-                </div>
-                <div class="stat-label">Total Bookings</div>
+                <h3>Total Bookings</h3>
+                <p><?= htmlspecialchars($total_bookings) ?></p>
             </div>
-            
-            <!-- Card 2: Clock -->
             <div class="stat-card">
-                <div class="stat-icon-wrapper">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
-                    </svg>
-                    <div class="stat-value"><?php echo $pending_bookings; ?></div>
-                </div>
-                <div class="stat-label">Pending Bookings</div>
+                <h3>Pending Approval</h3>
+                <p><?= htmlspecialchars($pending_bookings) ?></p>
             </div>
-            
-            <!-- Card 3: Checkmark -->
             <div class="stat-card">
-                <div class="stat-icon-wrapper">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                    </svg>
-                    <div class="stat-value"><?php echo $approved_bookings; ?></div>
-                </div>
-                <div class="stat-label">Approved Bookings</div>
+                <h3>Approved Bookings</h3>
+                <p><?= htmlspecialchars($approved_bookings) ?></p>
             </div>
         </div>
-        
-        <h2 class="section-title">Quick Actions</h2>
-        
-        <!-- QUICK ACTION ACTIONABLE CARDS -->
-        <div class="actions-row">
-            <!-- Add Booking Action -->
-            <a href="add_booking.php" class="action-card">
-                <div class="action-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                    </svg>
+
+        <div class="dashboard-grid">
+            <div class="grid-card">
+                <h3>Recent Bookings</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Hall Name</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ($recent_bookings_result->num_rows > 0): ?>
+                            <?php while ($row = $recent_bookings_result->fetch_assoc()): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($row['hall_name']) ?></td>
+                                    <td><?= htmlspecialchars($row['event_date']) ?></td>
+                                    <td>
+                                        <?php 
+                                        $statusClass = 'badge-pending';
+                                        $statusText = strtolower($row['status']);
+                                        if ($statusText === 'approved' || $statusText === 'success') $statusClass = 'badge-approved';
+                                        if ($statusText === 'rejected' || $statusText === 'cancelled') $statusClass = 'badge-cancelled';
+                                        ?>
+                                        <span class="badge <?= $statusClass ?>"><?= htmlspecialchars($row['status'] ?: 'Pending') ?></span>
+                                    </td>
+                                </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 20px;">No bookings found.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="grid-card">
+                <h3>Quick Actions</h3>
+                <div class="quick-actions">
+                    <a href="add_booking.php" class="action-link">
+                        <span class="action-icon">+</span>
+                        Book a Hall
+                    </a>
+                    <a href="booking_status.php" class="action-link">
+                        <span class="action-icon">📋</span>
+                        View History
+                    </a>
                 </div>
-                <div class="action-title">Add Booking</div>
-                <div class="action-desc">Book a new event hall</div>
-            </a>
-            
-            <!-- View Status Action -->
-            <a href="booking_status.php" class="action-card">
-                <div class="action-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
-                    </svg>
-                </div>
-                <div class="action-title">View Booking Status</div>
-                <div class="action-desc">Check your booking status</div>
-            </a>
+            </div>
         </div>
-        
     </main>
 </div>
 
+<div class="modal" id="logoutModal">
+    <div class="modal-box">
+        <h4 class="modal-title">Confirm Logout</h4>
+        <p class="modal-message">Are you sure you want to end your current session?</p>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeLogoutModal()">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmLogout()">Logout</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openLogoutModal() { document.getElementById('logoutModal').classList.add('open'); }
+function closeLogoutModal() { document.getElementById('logoutModal').classList.remove('open'); }
+function confirmLogout() { window.location.href = "../auth/logout.php"; }
+</script>
 </body>
 </html>
