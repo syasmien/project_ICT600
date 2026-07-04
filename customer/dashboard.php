@@ -37,8 +37,8 @@ $approved_query->bind_param("i", $current_cust_id);
 $approved_query->execute();
 $approved_bookings = $approved_query->get_result()->fetch_assoc()['total'];
 
-// Fetch the most recent 3 booking entries
-$recent_bookings_query = $conn->prepare("SELECT b.booking_id, h.hall_name, b.event_date, b.status 
+// FETCH THE MOST RECENT 3 BOOKING ENTRIES WITH THE NEW SCHEMA COLUMNS
+$recent_bookings_query = $conn->prepare("SELECT b.booking_id, h.hall_name, b.start_date, b.end_date, b.status 
                                         FROM booking b 
                                         JOIN hall h ON b.hall_id = h.hall_id 
                                         WHERE b.cust_id = ? 
@@ -189,7 +189,8 @@ $recent_bookings_result = $recent_bookings_query->get_result();
                     <thead>
                         <tr>
                             <th>Hall Name</th>
-                            <th>Date</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -198,7 +199,8 @@ $recent_bookings_result = $recent_bookings_query->get_result();
                             <?php while ($row = $recent_bookings_result->fetch_assoc()): ?>
                                 <tr>
                                     <td><?= htmlspecialchars($row['hall_name']) ?></td>
-                                    <td><?= htmlspecialchars($row['event_date']) ?></td>
+                                    <td><?= htmlspecialchars(date("j F Y", strtotime($row['start_date']))) ?></td>
+                                    <td><?= htmlspecialchars(date("j F Y", strtotime($row['end_date']))) ?></td>
                                     <td>
                                         <?php 
                                         $statusClass = 'badge-pending';
@@ -211,7 +213,7 @@ $recent_bookings_result = $recent_bookings_query->get_result();
                                 </tr>
                             <?php endwhile; ?>
                         <?php else: ?>
-                            <tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 20px;">No bookings found.</td></tr>
+                            <tr><td colspan="4" style="text-align: center; color: #94a3b8; padding: 20px;">No bookings found.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>

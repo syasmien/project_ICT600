@@ -40,37 +40,40 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['cancel_booking'])) {
     
     if ($db_connected) {
         try {
-            // Prepared statement to safely update status to 'Cancelled'
-            $stmt = $conn->prepare("UPDATE booking SET status = 'Cancelled' WHERE booking_id = :booking_id AND cust_id = :cust_id AND status = 'Pending'");
-            $stmt->execute([
-                ':booking_id' => $booking_id,
-                ':cust_id' => $current_cust_id
-            ]);
-            
-            if ($stmt->rowCount() > 0) {
-                $success_msg = "🎉 Booking #$booking_id has been cancelled successfully.";
+            // Verify ownership first before altering status parameters
+            $verify_stmt = $conn->prepare("SELECT status FROM booking WHERE booking_id = :booking_id AND cust_id = :cust_id");
+            $verify_stmt->execute([':booking_id' => $booking_id, ':cust_id' => $current_cust_id]);
+            $current_booking = $verify_stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($current_booking) {
+                if ($current_booking['status'] === 'Pending') {
+                    $cancel_stmt = $conn->prepare("UPDATE booking SET status = 'Cancelled' WHERE booking_id = :booking_id");
+                    $cancel_stmt->execute([':booking_id' => $booking_id]);
+                    $success_msg = "Booking successfully cancelled.";
+                } else {
+                    $error_msg = "Only Pending bookings can be cancelled.";
+                }
             } else {
-                $error_msg = "❌ Could not cancel booking. (Note: Only pending bookings can be cancelled).";
+                $error_msg = "Booking selection target was invalid.";
             }
-        } catch (PDOException $ex) {
-            $error_msg = "Database Action Error: " . $ex->getMessage();
+        } catch(PDOException $ex) {
+            $error_msg = "Execution Error: " . $ex->getMessage();
         }
     }
 }
 
-// Retrieve Dynamic Bookings data for the logged-in Customer ONLY
+// Gather customer items mapping using structural query bindings (Switched to start_date, end_date, total_days, total_price)
 if ($db_connected) {
     try {
-        // Query modified to use the correct 'guest_count' column name
-        $stmt_bookings = $conn->prepare("SELECT b.booking_id AS id, h.hall_name AS hall_name, b.event_type, b.event_date AS date, b.guest_count AS guests, b.status 
-                                       FROM booking b 
-                                       JOIN hall h ON b.hall_id = h.hall_id 
-                                       WHERE b.cust_id = :cust_id
-                                       ORDER BY b.booking_id DESC");
-        $stmt_bookings->execute([':cust_id' => $current_cust_id]);
-        $bookings_list = $stmt_bookings->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $ex) {
-        $db_error_message = $ex->getMessage();
+        $stmt = $conn->prepare("SELECT b.booking_id AS id, h.hall_name, b.event_type, b.start_date, b.end_date, b.guest_count, b.total_days, b.total_price, b.status 
+                               FROM booking b 
+                               JOIN hall h ON b.hall_id = h.hall_id 
+                               WHERE b.cust_id = :cust_id 
+                               ORDER BY b.booking_id DESC");
+        $stmt->execute([':cust_id' => $current_cust_id]);
+        $bookings_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch(PDOException $eb) {
+        $db_error_message = $eb->getMessage();
     }
 }
 ?>
@@ -92,33 +95,15 @@ if ($db_connected) {
             --bg-color: #f4f7f6;
             --text-main: #334155;
             --white: #ffffff;
-            --warning: #f59e0b;
-            --success: #10b981;
-            --danger: #ef4444;
             --border-color: #e2e8f0;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', sans-serif;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); }
+        .layout { display: flex; min-height: 100vh; }
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            min-height: 100vh;
-        }
-
-        /* Layout Main Containers */
-        .layout {
-            display: flex;
-            min-height: 100vh;
-            width: 100%;
-        }
-
-        /* Sidebar Styling (Matches Add Booking) */
         .sidebar {
             width: 260px;
             background: var(--sidebar-bg);
@@ -130,504 +115,77 @@ if ($db_connected) {
             height: 100vh;
             left: 0;
             top: 0;
-            z-index: 100;
         }
 
-        .sidebar-brand {
-            font-weight: 700;
-            font-size: 1.25rem;
-            margin-bottom: 40px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: white;
-            text-decoration: none;
-        }
-
-        .sidebar-brand-icon {
-            background-color: var(--primary);
-            width: 28px;
-            height: 28px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.9rem;
-            color: white;
-            transform: rotate(45deg);
-        }
-
-        .sidebar-brand-icon span {
-            transform: rotate(-45deg);
-        }
-
-        .sidebar-nav {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .nav-item {
-            color: #94a3b8;
-            text-decoration: none;
-            padding: 12px 16px;
-            border-radius: 8px;
-            font-weight: 500;
-            font-size: 0.95rem;
-            transition: all 0.2s ease;
-        }
-
-        .nav-item:hover {
-            background-color: rgba(255, 255, 255, 0.05);
-            color: white;
-        }
-
-        .nav-item.active {
-            background-color: rgba(59, 130, 246, 0.15);
-            color: #60a5fa;
-            font-weight: 600;
-        }
-
-        /* Sidebar Profile Badge footer */
-        .sidebar-footer {
-            margin-top: auto;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            padding-top: 20px;
-        }
-
-        .staff-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        .staff-avatar {
-            width: 40px;
-            height: 40px;
-            background: #2563eb;
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 0.95rem;
-        }
-
-        .staff-details {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .staff-name {
-            font-weight: 600;
-            font-size: 0.95rem;
-            color: white;
-        }
-
-        .logout-btn {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            background: rgba(239, 68, 68, 0.15);
-            color: #f87171;
-            text-align: center;
-            border-radius: 8px;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 0.9rem;
-            transition: all 0.2s ease;
-        }
-
-        .logout-btn:hover {
-            background: var(--danger);
-            color: white;
-        }
-
-        /* Main Viewport Content */
-        .main-content {
-            margin-left: 260px;
-            flex: 1;
-            padding: 40px;
-            min-height: 100vh;
-            overflow-y: auto;
-        }
-
-        .topbar {
-            margin-bottom: 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .page-title {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: #1e293b;
-        }
-
-        /* Status Filters & Search Bar Section */
-        .filter-section {
-            background: var(--white);
-            padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 24px;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
-            display: flex;
-            gap: 16px;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .search-box {
-            position: relative;
-            flex: 1;
-            min-width: 250px;
-        }
-
-        .search-control {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 0.9rem;
-            outline: none;
-            background-color: #f8fafc;
-            transition: all 0.2s ease;
-        }
-
-        .search-control:focus {
-            border-color: var(--primary);
-            background-color: #ffffff;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-
-        .filter-buttons {
-            display: flex;
-            gap: 8px;
-        }
-
-        .filter-btn {
-            padding: 10px 16px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            border: 1px solid var(--border-color);
-            background-color: var(--white);
-            color: #64748b;
-            transition: all 0.2s ease;
-        }
-
-        .filter-btn:hover {
-            background-color: #f8fafc;
-            color: #334155;
-        }
-
-        .filter-btn.active {
-            background-color: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
-
-        /* Card Container Panel */
-        .booking-card {
-            background: var(--white);
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-            border: 1px solid var(--border-color);
-        }
-
-        .booking-card h3 {
-            font-size: 1.1rem;
-            color: #1e293b;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 24px;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 12px;
-        }
-
-        /* Custom Dynamic Table Styling */
-        .table-wrapper {
-            background: var(--white);
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid var(--border-color);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f8fafc;
-            color: #64748b;
-            font-weight: 600;
-            font-size: 0.85rem;
-            padding: 16px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 2px solid var(--border-color);
-        }
-
-        td {
-            padding: 16px;
-            border-bottom: 1px solid var(--border-color);
-            font-size: 0.95rem;
-            color: #334155;
-        }
-
-        tr:last-child td {
-            border-bottom: none;
-        }
-
-        tr:hover td {
-            background-color: #f8fafc;
-        }
-
-        /* Status & Alert Badges */
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: capitalize;
-        }
-
-        .badge-approved {
-            background: #dcfce7;
-            color: #15803d;
-        }
-
-        .badge-pending {
-            background: #fef3c7;
-            color: #b45309;
-        }
-
-        .badge-cancelled, .badge-rejected {
-            background: #fee2e2;
-            color: #b91c1c;
-        }
-
-        /* Alert Notifications */
-        .alert {
-            padding: 16px 20px;
-            border-radius: 10px;
-            font-size: 0.95rem;
-            font-weight: 500;
-            margin-bottom: 24px;
-        }
-
-        .alert-success {
-            background-color: #dcfce7;
-            color: #15803d;
-            border: 1px solid #bbf7d0;
-        }
-
-        .alert-error {
-            background-color: #fee2e2;
-            color: #b91c1c;
-            border: 1px solid #fecaca;
-        }
-
-        /* Styled Functional Actions Button */
-        .action-btns {
-            display: flex;
-            gap: 8px;
-        }
-
-        .action-btn {
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-decoration: none;
-            cursor: pointer;
-            border: 1px solid transparent;
-            transition: all 0.15s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .action-edit {
-            background-color: #f1f5f9;
-            color: #475569;
-            border-color: #cbd5e1;
-        }
-
-        .action-edit:hover {
-            background-color: #e2e8f0;
-            color: #1e293b;
-        }
-
-        .action-cancel {
-            background-color: rgba(239, 68, 68, 0.08);
-            color: #ef4444;
-            border-color: rgba(239, 68, 68, 0.2);
-        }
-
-        .action-cancel:hover {
-            background-color: #ef4444;
-            color: white;
-            border-color: #ef4444;
-        }
-
-        /* Action Buttons State Blockers */
-        .action-disabled {
-            background-color: #e2e8f0;
-            color: #94a3b8;
-            border-color: #cbd5e1;
-            cursor: not-allowed;
-            pointer-events: none;
-            opacity: 0.5;
-        }
-
-        /* Styled Functional Pagination */
-        .pagination-container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-top: 24px;
-            padding-top: 16px;
-            border-top: 1px solid var(--border-color);
-        }
-
-        .pagination-info {
-            font-size: 0.95rem;
-            color: #64748b;
-        }
-
-        .pagination-btn {
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            background-color: white;
-            color: #475569;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 0.85rem;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-
-        .pagination-btn:hover {
-            background-color: #f8fafc;
-            color: #1e293b;
-            border-color: #cbd5e1;
-        }
-
-        .pagination-btn.active {
-            background-color: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
-
-        .pagination-btn:disabled {
-            background-color: #f8fafc;
-            color: #cbd5e1;
-            cursor: not-allowed;
-            border-color: #f1f5f9;
-        }
-
-        /* Modal Overlays styling */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(15, 23, 42, 0.4);
-            backdrop-filter: blur(4px);
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-
-        .modal.open {
-            display: flex;
-        }
-
-        .modal-box {
-            background: white;
-            padding: 32px;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 400px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            text-align: center;
-        }
-
-        .modal-title {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #1e293b;
-            margin-bottom: 12px;
-        }
-
-        .modal-message {
-            font-size: 0.95rem;
-            color: #64748b;
-            margin-bottom: 24px;
-            line-height: 1.5;
-        }
-
-        .modal-actions {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 12px;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            cursor: pointer;
-            border: none;
-            transition: background-color 0.15s ease;
-        }
-
-        .btn-secondary {
-            background-color: #f1f5f9;
-            color: #475569;
-        }
-
-        .btn-secondary:hover {
-            background-color: #e2e8f0;
-        }
-
-        .btn-danger {
-            background-color: var(--danger);
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background-color: #dc2626;
-        }
+        .sidebar-brand { font-weight: 700; font-size: 1.25rem; margin-bottom: 40px; display: flex; align-items: center; gap: 10px; color: white; text-decoration: none; }
+        .sidebar-brand-icon { background-color: var(--primary); width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; transform: rotate(45deg); }
+        .sidebar-brand-icon span { transform: rotate(-45deg); }
+        
+        .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .nav-item { color: #94a3b8; text-decoration: none; padding: 12px 16px; border-radius: 8px; font-weight: 500; }
+        .nav-item:hover, .nav-item.active { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+
+        .sidebar-footer { margin-top: auto; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 20px; }
+        .staff-info { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+        .staff-avatar { width: 40px; height: 40px; background: #2563eb; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+        .staff-name { font-weight: 600; color: white; }
+
+        .logout-btn { width: 100%; padding: 12px; background: rgba(239, 68, 68, 0.15); color: #f87171; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2); cursor: pointer; font-weight: 600; }
+        .logout-btn:hover { background: #ef4444; color: white; }
+
+        .main-content { margin-left: 260px; flex: 1; padding: 40px; }
+        .topbar { margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
+        .page-title { font-size: 1.75rem; font-weight: 700; }
+
+        .status-card { background: white; padding: 24px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        
+        .filter-bar { display: flex; gap: 16px; margin-bottom: 24px; align-items: center; justify-content: space-between; }
+        .search-input { padding: 10px 16px; border: 1px solid var(--border-color); border-radius: 8px; width: 300px; font-size: 0.9rem; }
+        .filter-select { padding: 10px 16px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.9rem; background: white; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { background-color: #f8fafc; color: #64748b; font-weight: 600; padding: 14px; text-transform: uppercase; border-bottom: 2px solid var(--border-color); font-size: 0.8rem; text-align: left; }
+        td { padding: 14px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; color: #334155; }
+
+        .badge { padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.8rem; display: inline-block; }
+        .badge-approved { background: #dcfce7; color: #15803d; }
+        .badge-pending { background: #fef3c7; color: #b45309; }
+        .badge-rejected { background: #fee2e2; color: #b91c1c; }
+        .badge-cancelled { background: #e2e8f0; color: #475569; }
+
+        .action-btn-group { display: flex; gap: 8px; }
+        .btn-action { padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.8rem; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+        .btn-edit { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
+        .btn-edit:hover { background: #dcfce7; }
+        .btn-cancel { background: #fff5f5; color: #e53e3e; border-color: #fed7d7; }
+        .btn-cancel:hover { background: #fee2e2; }
+
+        .alert { padding: 16px 20px; border-radius: 10px; margin-bottom: 24px; }
+        .alert-success { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+        .alert-error { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+
+        .pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+        .pagination-info { font-size: 0.85rem; color: #64748b; }
+        .pagination-buttons { display: flex; gap: 8px; }
+        .btn-page { padding: 8px 14px; border: 1px solid var(--border-color); background: white; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
+        .btn-page:hover:not(:disabled) { background: #f8fafc; }
+        .btn-page:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); align-items: center; justify-content: center; z-index: 1000; }
+        .modal.open { display: flex; }
+        .modal-box { background: white; padding: 32px; border-radius: 12px; text-align: center; max-width: 400px; width: 90%; }
+        .modal-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 10px; }
+        .modal-message { color: #64748b; font-size: 0.95rem; margin-bottom: 24px; }
+        .modal-actions { display: flex; gap: 12px; }
+        .btn { padding: 12px; border-radius: 8px; cursor: pointer; flex: 1; border: none; font-weight: 600; }
+        .btn-secondary { background: #f1f5f9; color: #475569; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: var(--danger-hover); }
     </style>
 </head>
 <body>
 
 <div class="layout">
-    <!-- Sidebar Navigation -->
     <aside class="sidebar">
         <a href="dashboard.php" class="sidebar-brand">
             <div class="sidebar-brand-icon"><span>♦</span></div>
@@ -639,90 +197,89 @@ if ($db_connected) {
             <a href="booking_status.php" class="nav-item active">Booking Status</a>
             <a href="profile.php" class="nav-item">Profile</a>
         </nav>
-        
-        <!-- Sidebar User Badge Footer -->
         <div class="sidebar-footer">
             <div class="staff-info">
                 <div class="staff-avatar">C</div>
                 <div class="staff-details">
-                    <span class="staff-name"><?= htmlspecialchars($_SESSION['user_name']) ?></span>
+                    <span class="staff-name"><?= htmlspecialchars($_SESSION['user_name'] ?? 'Customer') ?></span>
                 </div>
             </div>
             <button class="logout-btn" onclick="openLogoutModal()">Logout</button>
         </div>
     </aside>
 
-    <!-- Main Content Panel Area -->
     <main class="main-content">
         <div class="topbar">
-            <h1 class="page-title">Booking Status</h1>
+            <h1 class="page-title">My Booking History</h1>
         </div>
-
-        <!-- Connection Error Diagnostics Alert -->
-        <?php if (!$db_connected && !empty($db_error_message)): ?>
-            <div class="alert alert-error">
-                <strong>Database Error Diagnostic Alert:</strong> Connection offline.<br>
-                <code style="font-family: monospace; display: block; margin-top: 8px; font-size: 0.85rem; color: #7f1d1d;">Error: <?= htmlspecialchars($db_error_message) ?></code>
-            </div>
-        <?php endif; ?>
 
         <?php if (!empty($success_msg)): ?>
-            <div class="alert alert-success"><?= htmlspecialchars($success_msg) ?></div>
+            <div class="alert alert-success"><?= $success_msg ?></div>
         <?php endif; ?>
         <?php if (!empty($error_msg)): ?>
-            <div class="alert alert-error"><?= htmlspecialchars($error_msg) ?></div>
+            <div class="alert alert-error"><?= $error_msg ?></div>
+        <?php endif; ?>
+        <?php if (!$db_connected): ?>
+            <div class="alert alert-error">Database connection down: <?= htmlspecialchars($db_error_message) ?></div>
         <?php endif; ?>
 
-        <!-- Search and Live Filtering Workspace Panel -->
-        <div class="filter-section">
-            <div class="search-box">
-                <input type="text" id="searchInput" class="search-control" placeholder="Search by Hall Name, Event or Date..." onkeyup="filterBookings()">
+        <div class="status-card">
+            <div class="filter-bar">
+                <input type="text" id="searchInput" class="search-input" placeholder="Search hall, event type..." oninput="onSearchChange(this.value)">
+                
+                <select id="statusFilter" class="filter-select" onchange="onStatusFilterChange(this.value)">
+                    <option value="All">All Statuses</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
             </div>
-            <div class="filter-buttons">
-                <button class="filter-btn active" id="btn_all" onclick="filterByStatus('All')">All</button>
-                <button class="filter-btn" id="btn_pending" onclick="filterByStatus('Pending')">Pending</button>
-                <button class="filter-btn" id="btn_approved" onclick="filterByStatus('Approved')">Approved</button>
-                <button class="filter-btn" id="btn_cancelled" onclick="filterByStatus('Cancelled')">Cancelled</button>
-            </div>
-        </div>
 
-        <!-- Bookings Overview Card -->
-        <div class="booking-card">
-            <h3>My Bookings History</h3>
-            <div class="table-wrapper">
-                <table id="bookingsTable">
-                    <thead>
-                        <tr>
-                            <th>Booking ID</th>
-                            <th>Hall Name</th>
-                            <th>Event Type</th>
-                            <th>Event Date</th>
-                            <th>Guests</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="bookingsTableBody">
+            <table id="bookingsTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Hall Name</th>
+                        <th>Event Type</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Days</th>
+                        <th>Guests</th>
+                        <th>Total Price</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
                     </tbody>
-                </table>
-            </div>
+            </table>
 
-            <!-- Styled Pagination Controllers -->
-            <div class="pagination-container" id="pagination_container">
-                <div class="pagination-info" id="pagination_info">
-                    Showing 1 to 5 entries
-                </div>
-                <div style="display:flex; gap:6px;">
-                    <button class="pagination-btn" id="btn_prev" onclick="goToPage('prev')">Prev</button>
-                    <span id="page_numbers" style="display: flex; gap: 4px;"></span>
-                    <button class="pagination-btn" id="btn_next" onclick="goToPage('next')">Next</button>
+            <div class="pagination">
+                <div class="pagination-info" id="paginationInfo">Showing 0 to 0 of 0 entries</div>
+                <div class="pagination-buttons">
+                    <button class="btn-page" id="btnPrev" onclick="changePage(-1)">Previous</button>
+                    <button class="btn-page" id="btnNext" onclick="changePage(1)">Next</button>
                 </div>
             </div>
         </div>
     </main>
 </div>
 
-<!-- Logout confirmation modal -->
+<div class="modal" id="cancelModal">
+    <div class="modal-box">
+        <h4 class="modal-title">Cancel Booking Request</h4>
+        <p class="modal-message">Are you sure you want to cancel this booking? This action cannot be undone.</p>
+        <form action="" method="POST">
+            <input type="hidden" id="cancel_booking_id" name="booking_id" value="">
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeCancelModal()">Dismiss</button>
+                <button type="submit" name="cancel_booking" class="btn btn-danger">Confirm Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="modal" id="logoutModal">
     <div class="modal-box">
         <h4 class="modal-title">Confirm Logout</h4>
@@ -734,135 +291,83 @@ if ($db_connected) {
     </div>
 </div>
 
-<!-- Cancel booking confirmation modal -->
-<div class="modal" id="cancelModal">
-    <div class="modal-box">
-        <h4 class="modal-title" style="color: var(--danger);">Cancel Booking</h4>
-        <p class="modal-message">Are you sure you want to cancel this booking request?</p>
-        <form id="cancelForm" method="POST" action="">
-            <input type="hidden" name="booking_id" id="cancel_booking_id">
-            <input type="hidden" name="cancel_booking" value="1">
-            <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" onclick="closeCancelModal()">Keep Booking</button>
-                <button type="submit" class="btn btn-danger">Yes, Cancel</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 <script>
-    // Map raw data safely into format JavaScript matches
-    // Clean JSON output using helper flag constraints to prevent syntax-breaking character injection
-    const rawData = <?= json_encode($bookings_list, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
-    let bookingsData = [];
+    // Inject structural runtime configurations from PDO queries
+    const bookingsData = <?= json_encode($bookings_list) ?>;
     
-    if (Array.isArray(rawData)) {
-        bookingsData = rawData.map(item => ({
-            id: item.id,
-            hall_name: item.hall_name,
-            event_type: item.event_type || 'Custom Event',
-            date: item.date,
-            guests: item.guests || 0,
-            status: item.status || 'Pending'
-        }));
-    }
-
     let filteredData = [...bookingsData];
-    let selectedStatusFilter = 'All';
-    let searchQuery = '';
-    const rowsPerPage = 5;
     let currentPage = 1;
+    const rowsPerPage = 5;
+
+    let searchQuery = "";
+    let selectedStatusFilter = "All";
 
     function renderTable() {
-        const tbody = document.getElementById("bookingsTableBody");
+        const tbody = document.getElementById('tableBody');
         tbody.innerHTML = "";
 
         if (filteredData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 40px;">No bookings found matching filters.</td></tr>`;
-            document.getElementById("pagination_container").style.display = "none";
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color:#94a3b8; padding:30px;">No matching booking history found.</td></tr>';
+            document.getElementById('paginationInfo').textContent = "Showing 0 to 0 of 0 entries";
+            document.getElementById('btnPrev').disabled = true;
+            document.getElementById('btnNext').disabled = true;
             return;
         }
 
-        document.getElementById("pagination_container").style.display = "flex";
-
         const startIndex = (currentPage - 1) * rowsPerPage;
         const endIndex = Math.min(startIndex + rowsPerPage, filteredData.length);
-        const paginatedSlice = filteredData.slice(startIndex, endIndex);
+        const paginatedItems = filteredData.slice(startIndex, endIndex);
 
-        paginatedSlice.forEach(row => {
-            const tr = document.createElement("tr");
-            const statusLower = row.status.toLowerCase();
-            let statusClass = 'badge-pending';
-            if (statusLower === 'approved' || statusLower === 'success') statusClass = 'badge-approved';
-            if (statusLower === 'cancelled' || statusLower === 'rejected') statusClass = 'badge-cancelled';
+        paginatedItems.forEach(item => {
+            let badgeClass = 'badge-pending';
+            if (item.status === 'Approved') badgeClass = 'badge-approved';
+            if (item.status === 'Rejected') badgeClass = 'badge-rejected';
+            if (item.status === 'Cancelled') badgeClass = 'badge-cancelled';
 
-            const isPending = (statusLower === 'pending');
-            const editClass = isPending ? '' : 'action-disabled';
-            const cancelClass = isPending ? 'action-cancel' : 'action-disabled';
-
-            // Fixed conditional edit href so non-pending rows cannot open edit
-            const editUrl = isPending ? `update_booking.php?booking_id=${row.id}` : '#';
-
-            tr.innerHTML = `
-                <td><strong>#${row.id}</strong></td>
-                <td>${escapeHtml(row.hall_name)}</td>
-                <td>${escapeHtml(row.event_type)}</td>
-                <td>${escapeHtml(row.date)}</td>
-                <td>${row.guests}</td>
-                <td><span class="badge ${statusClass}">${escapeHtml(row.status)}</span></td>
-                <td>
-                    <div class="action-btns">
-                        <a href="${editUrl}" class="action-btn action-edit ${editClass}">Edit</a>
-                        <button class="action-btn ${cancelClass}" onclick="openCancelModal(${row.id})" ${isPending ? '' : 'disabled'}>Cancel</button>
+            // Show actions button mapping conditionally
+            let actionsHtml = '-';
+            if (item.status === 'Pending') {
+                actionsHtml = `
+                    <div class="action-btn-group">
+                        <a href="update_booking.php?id=${item.id}" class="btn-action btn-edit">Edit</a>
+                        <button type="button" class="btn-action btn-cancel" onclick="openCancelModal(${item.id})">Cancel</button>
                     </div>
-                </td>
+                `;
+            }
+
+            // Beautiful Date conversions
+            const formatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+            const startFormatted = new Date(item.start_date).toLocaleDateString('en-GB', formatOptions);
+            const endFormatted = new Date(item.end_date).toLocaleDateString('en-GB', formatOptions);
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>#${item.id}</td>
+                <td><strong>${escapeHtml(item.hall_name)}</strong></td>
+                <td>${escapeHtml(item.event_type)}</td>
+                <td>${startFormatted}</td>
+                <td>${endFormatted}</td>
+                <td>${item.total_days} Day(s)</td>
+                <td>${item.guest_count} pax</td>
+                <td><strong>RM ${parseFloat(item.total_price).toFixed(2)}</strong></td>
+                <td><span class="badge ${badgeClass}">${item.status}</span></td>
+                <td>${actionsHtml}</td>
             `;
-            tbody.appendChild(tr);
+            tbody.appendChild(row);
         });
 
-        document.getElementById("pagination_info").innerText = `Showing ${startIndex + 1} to ${endIndex} of ${filteredData.length} entries`;
-        
-        // Generate page numbers dynamically
-        renderPageNumbers();
+        document.getElementById('paginationInfo').textContent = `Showing ${startIndex + 1} to ${endIndex} of ${filteredData.length} entries`;
+        document.getElementById('btnPrev').disabled = (currentPage === 1);
+        document.getElementById('btnNext').disabled = (currentPage * rowsPerPage >= filteredData.length);
     }
 
-    function renderPageNumbers() {
-        const container = document.getElementById("page_numbers");
-        container.innerHTML = "";
-        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-
-        for (let i = 1; i <= totalPages; i++) {
-            const btn = document.createElement("button");
-            btn.className = `pagination-btn ${currentPage === i ? 'active' : ''}`;
-            btn.innerText = i;
-            btn.onclick = () => {
-                currentPage = i;
-                renderTable();
-            };
-            container.appendChild(btn);
-        }
-
-        document.getElementById("btn_prev").disabled = (currentPage === 1);
-        document.getElementById("btn_next").disabled = (currentPage === totalPages || totalPages === 0);
-    }
-
-    function goToPage(direction) {
-        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-        if (direction === 'prev' && currentPage > 1) currentPage--;
-        if (direction === 'next' && currentPage < totalPages) currentPage++;
-        renderTable();
-    }
-
-    // Live search query matching on fields
-    function filterBookings() {
-        searchQuery = document.getElementById("searchInput").value.toLowerCase();
+    function onSearchChange(val) {
+        searchQuery = val.toLowerCase().trim();
         applyFilters();
     }
 
-    function filterByStatus(status) {
-        selectedStatusFilter = status;
-        document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("active"));
-        document.getElementById(`btn_${status.toLowerCase()}`).classList.add("active");
+    function onStatusFilterChange(val) {
+        selectedStatusFilter = val;
         applyFilters();
     }
 
@@ -871,11 +376,17 @@ if ($db_connected) {
             const statusMatch = (selectedStatusFilter === 'All') || (item.status.toLowerCase() === selectedStatusFilter.toLowerCase());
             const searchMatch = (item.hall_name.toLowerCase().includes(searchQuery)) || 
                                 (item.event_type.toLowerCase().includes(searchQuery)) || 
-                                (item.date.includes(searchQuery)) ||
+                                (item.start_date.includes(searchQuery)) ||
+                                (item.end_date.includes(searchQuery)) ||
                                 (String(item.id).includes(searchQuery));
             return statusMatch && searchMatch;
         });
         currentPage = 1;
+        renderTable();
+    }
+
+    function changePage(direction) {
+        currentPage += direction;
         renderTable();
     }
 
@@ -894,7 +405,10 @@ if ($db_connected) {
     }
     function closeCancelModal() { document.getElementById('cancelModal').classList.remove('open'); }
 
-    window.onload = renderTable;
+    // Initialize execution map on page draw setup
+    document.addEventListener("DOMContentLoaded", () => {
+        renderTable();
+    });
 </script>
 </body>
 </html>

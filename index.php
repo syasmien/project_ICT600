@@ -290,9 +290,9 @@ $result = $conn->query($sql);
         <h2>EHBS</h2>
         <ul>
             <li><a href="#">Home</a></li>
-            <li><a href="#about">About</a></li>
-            <li><a href="#contact">Contact</a></li>
-            <li><a href="#policy">Web Policy</a></li>
+            <li><a href="about.php">About</a></li>
+            <li><a href="contact.php">Contact</a></li>
+            <li><a href="policy.php">Web Policy</a></li>
             <li>
                 <a href="auth/login.php" class="nav-btn">Login</a>
             </li>
@@ -364,6 +364,11 @@ $result = $conn->query($sql);
     </main>
 
     <footer>
+        <div class="footer-nav">
+           <a href="about.php">About Us</a>
+           <a href="contact.php">Contact Support</a>
+           <a href="policy.php">Privacy & Terms</a>
+        </div>
         <p>© 2026 Event Hall Booking System | All Rights Reserved</p>
     </footer>
 
