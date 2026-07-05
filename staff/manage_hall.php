@@ -36,7 +36,6 @@ $result = mysqli_query($conn, "SELECT * FROM hall ORDER BY hall_id DESC");
 
 <div class="layout">
 
-    <!-- SIDEBAR -->
     <aside class="sidebar">
         <div class="sidebar-brand">
             <div class="brand-icon">&#9670;</div>
@@ -56,6 +55,10 @@ $result = mysqli_query($conn, "SELECT * FROM hall ORDER BY hall_id DESC");
                 <span class="nav-icon">&#128203;</span>
                 <span class="nav-label">Manage Bookings</span>
             </a>
+            <a href="manage_users.php" class="nav-item">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Manage Users</span>
+            </a>
         </nav>
 
         <div class="sidebar-footer">
@@ -70,10 +73,8 @@ $result = mysqli_query($conn, "SELECT * FROM hall ORDER BY hall_id DESC");
         </div>
     </aside>
 
-    <!-- MAIN CONTENT -->
     <main class="main-content">
 
-        <!-- TOPBAR -->
         <div class="topbar">
             <div class="topbar-inner">
                 <div>
@@ -84,7 +85,6 @@ $result = mysqli_query($conn, "SELECT * FROM hall ORDER BY hall_id DESC");
             </div>
         </div>
 
-        <!-- TABLE -->
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -137,7 +137,6 @@ $result = mysqli_query($conn, "SELECT * FROM hall ORDER BY hall_id DESC");
                     <?php } ?>
                 </tbody>
             </table>
-            <!-- DELETE MODAL -->
             <div class="modal" id="deleteModal">
                 <div class="modal-box">
                     <h3>Confirm Delete</h3>

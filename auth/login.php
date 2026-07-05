@@ -11,7 +11,7 @@ if (isset($_POST['login'])) {
     $password = $_POST['password']; // Get raw password for verification checks
 
     if ($userType == "customer") {
-        // Matches your database structure: email, username, full_name, password, cust_id
+        // Matches your database structure: email, username, full_name, password, cust_id, status
         $sql = "SELECT * FROM customer WHERE email='$username' OR username='$username'";
         $result = mysqli_query($conn, $sql);
 
@@ -21,15 +21,20 @@ if (isset($_POST['login'])) {
             // Verify password: Check both securely hashed passwords and plain text fallbacks
             if (password_verify($password, $row['password']) || $password === $row['password']) {
                 
-                // Set identical session keys expected by customer pages
-                $_SESSION['user_id'] = $row['cust_id'];
-                // Set display name to full_name, fall back to username if full_name is empty
-                $_SESSION['user_name'] = !empty($row['full_name']) ? $row['full_name'] : $row['username']; 
-                $_SESSION['user_email'] = $row['email'];
-                $_SESSION['user_role'] = "Customer";
+                // ACCOUNT STATUS VALIDATION CHECK
+                if (isset($row['status']) && $row['status'] === 'Inactive') {
+                    $error = "Your account has been deactivated. Please contact staff support!";
+                } else {
+                    // Set identical session keys expected by customer pages
+                    $_SESSION['user_id'] = $row['cust_id'];
+                    // Set display name to full_name, fall back to username if full_name is empty
+                    $_SESSION['user_name'] = !empty($row['full_name']) ? $row['full_name'] : $row['username']; 
+                    $_SESSION['user_email'] = $row['email'];
+                    $_SESSION['user_role'] = "Customer";
 
-                header("Location: ../customer/dashboard.php");
-                exit();
+                    header("Location: ../customer/dashboard.php");
+                    exit();
+                }
             } else {
                 $error = "Invalid password details!";
             }

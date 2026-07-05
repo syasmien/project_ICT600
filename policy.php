@@ -160,7 +160,7 @@
 <body>
 
     <nav>
-        <h2>EHBS</h2>
+        <h2>EVENT HALL BOOKING</h2>
         <ul>
             <li><a href="index.php">Home</a></li>
             <li><a href="about.php">About</a></li>

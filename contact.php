@@ -1,3 +1,68 @@
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+$success = "";
+$error = "";
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+
+    $name = htmlspecialchars(trim($_POST['name']));
+    $email = htmlspecialchars(trim($_POST['email']));
+    $message = htmlspecialchars(trim($_POST['message']));
+
+    $mail = new PHPMailer(true);
+
+    try {
+
+        // SMTP Configuration
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'eventhallbooking5@gmail.com';      // Change this
+        $mail->Password   = 'bqzt ddhx yolj rmjf';         // Change this
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        // Sender
+        $mail->setFrom('eventhallbooking5@gmail.com', 'EHBS Contact Form');
+
+        // Receiver
+        $mail->addAddress('eventhallbooking5@gmail.com');
+
+        $mail->addReplyTo($email, $name);
+
+        // Email Content
+        $mail->isHTML(true);
+        $mail->Subject = 'New Contact Inquiry';
+
+        $mail->Body = "
+            <h2>New Inquiry Received</h2>
+
+            <p><strong>Name:</strong> {$name}</p>
+
+            <p><strong>Email:</strong> {$email}</p>
+
+            <p><strong>Message:</strong></p>
+
+            <p>{$message}</p>
+        ";
+
+        $mail->send();
+
+        $success = "Your inquiry has been sent successfully.";
+
+    } catch (Exception $e) {
+
+        $error = "Unable to send inquiry. Please try again later.";
+
+    }
+
+}
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -209,7 +274,7 @@
 <body>
 
     <nav>
-        <h2>EHBS</h2>
+        <h2>EVENT HALL BOOKING</h2>
         <ul>
             <li><a href="index.php">Home</a></li>
             <li><a href="about.php">About</a></li>
@@ -231,21 +296,32 @@
             <div class="info-details">
                 <div class="info-block">
                     <h4>Our Office</h4>
-                    <p>123 Corporate Tower, Suite 4B, Kuala Lumpur, Malaysia</p>
+                    <p>No. 15, Jalan Glugor 1/7,Seksyen 13,40100 Shah Alam,Selangor, Malaysia</p>
                 </div>
                 <div class="info-block">
                     <h4>Support Email</h4>
-                    <p>support@ehbs.com</p>
+                    <p>eventhallbooking5@gmail.com</p>
                 </div>
                 <div class="info-block">
                     <h4>Phone Number</h4>
-                    <p>+60 3-1234 5678</p>
+                    <p>+03 1234 5678</p>
                 </div>
             </div>
         </section>
 
         <section class="contact-form-container">
-            <form action="#" method="POST">
+            <?php if($success != "") { ?>
+    <div style="margin-bottom:20px;padding:12px;border-radius:8px;background:#dcfce7;color:#166534;">
+        <?php echo $success; ?>
+    </div>
+<?php } ?>
+
+<?php if($error != "") { ?>
+    <div style="margin-bottom:20px;padding:12px;border-radius:8px;background:#fee2e2;color:#991b1b;">
+        <?php echo $error; ?>
+    </div>
+<?php } ?>
+            <form action="" method="POST">
                 <div class="form-group">
                     <label for="name">Your Name</label>
                     <input type="text" id="name" name="name" class="form-control" placeholder="John Doe" required>

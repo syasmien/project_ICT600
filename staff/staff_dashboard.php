@@ -406,6 +406,7 @@ $recent = mysqli_query($conn, "
             <a href="staff_dashboard.php" class="menu-item active">📊 Dashboard</a>
             <a href="manage_bookings.php" class="menu-item">📅 Manage Bookings</a>
             <a href="manage_hall.php" class="menu-item">🏢 Manage Halls</a>
+            <a href="manage_users.php" class="menu-item">👤 Manage Users</a>
         </nav>
 
         <div class="sidebar-footer">

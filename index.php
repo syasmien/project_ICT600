@@ -12,9 +12,21 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// 2. Fetch all available halls (Removed image_path)
-$sql = "SELECT hall_id, hall_name, hall_capacity, price FROM hall";
-$result = $conn->query($sql);
+// 2. Fetch only 2 featured halls for the main page view
+$sql_featured = "SELECT hall_id, hall_name, hall_capacity, price, image FROM hall LIMIT 2";
+$result_featured = $conn->query($sql_featured);
+
+// 3. Fetch ALL halls to feed the "Explore Halls" grid popup
+$sql_all = "SELECT hall_id, hall_name, hall_capacity, price, image FROM hall";
+$result_all = $conn->query($sql_all);
+
+// Keep an array cache for client-side popups
+$all_halls_data = [];
+if ($result_all && $result_all->num_rows > 0) {
+    while($row = $result_all->fetch_assoc()) {
+        $all_halls_data[] = $row;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -45,7 +57,7 @@ $result = $conn->query($sql);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background-color: white; /* Clean white background from your original design */
+            background-color: white; 
             box-shadow: 0px 2px 10px rgba(0,0,0,0.05);
             position: fixed;
             top: 0;
@@ -72,11 +84,11 @@ $result = $conn->query($sql);
         }
 
         nav ul li a:hover {
-            color: #4f46e5; /* The Indigo/Blue accent on hover */
+            color: #4f46e5; 
         }
 
         .nav-btn {
-            background-color: #4f46e5; /* Your preferred blue */
+            background-color: #4f46e5; 
             color: white !important;
             padding: 10px 18px;
             border-radius: 8px;
@@ -93,7 +105,7 @@ $result = $conn->query($sql);
             margin: 0 auto;
             padding: 140px 80px 40px;
             display: grid;
-            grid-template-columns: 1fr 1.5fr; /* Wireframe layout: Left side (Hero), Right side (Featured Halls) */
+            grid-template-columns: 1fr 1.5fr; 
             gap: 60px;
             min-height: calc(100vh - 80px);
         }
@@ -102,7 +114,7 @@ $result = $conn->query($sql);
         .hero-text {
             display: flex;
             flex-direction: column;
-            justify-content: flex-start;
+            justify-content: center; 
         }
 
         .hero-text h1 {
@@ -119,6 +131,11 @@ $result = $conn->query($sql);
             margin-bottom: 35px;
         }
 
+        .hero-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
         .hero-buttons a {
             text-decoration: none;
         }
@@ -130,12 +147,11 @@ $result = $conn->query($sql);
             font-size: 16px;
             font-weight: 500;
             cursor: pointer;
-            margin-right: 15px;
             transition: 0.3s;
         }
 
         .book-btn {
-            background-color: #4f46e5; /* Your preferred blue */
+            background-color: #4f46e5; 
             color: white;
         }
 
@@ -151,17 +167,6 @@ $result = $conn->query($sql);
 
         .hero-buttons button:hover {
             transform: translateY(-2px);
-        }
-
-        .hero-image {
-            margin-top: 40px;
-            width: 100%;
-        }
-
-        .hero-image img {
-            width: 100%;
-            border-radius: 15px;
-            box-shadow: 0px 5px 20px rgba(0,0,0,0.08);
         }
 
         /* --- FEATURED HALLS CONTAINER (RIGHT) --- */
@@ -201,22 +206,14 @@ $result = $conn->query($sql);
 
         .hall-card-img {
             height: 150px;
-            background: linear-gradient(to bottom, #e0f2fe, #bcbeff); /* Updated placeholder gradient to match your blue style */
+            background: linear-gradient(to bottom, #e0f2fe, #bcbeff); 
             position: relative;
         }
 
-        /* Cloud visual representation from the wireframe */
-        .hall-card-img::before {
-            content: '';
-            position: absolute;
-            top: 35%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            width: 45px;
-            height: 25px;
-            border-radius: 20px;
-            opacity: 0.85;
+        .hall-card-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .hall-card-body {
@@ -225,42 +222,71 @@ $result = $conn->query($sql);
             flex-direction: column;
             flex-grow: 1;
             justify-content: space-between;
+            gap: 15px; /* Added spacing between title and button */
         }
 
         .hall-title {
             font-size: 18px;
             font-weight: 600;
             color: #1e293b;
-            margin-bottom: 10px;
-        }
-
-        .hall-capacity {
-            font-size: 14px;
-            color: #64748b;
-            margin-bottom: 8px;
-        }
-
-        .hall-price {
-            font-size: 14px;
-            color: #94a3b8;
-            margin-bottom: 20px;
         }
 
         .view-btn {
             display: block;
-            background-color: #4f46e5; /* Adjusted to match your primary blue theme */
+            width: 100%;
+            background-color: #4f46e5; 
             color: white;
             text-decoration: none;
             padding: 10px;
+            border: none;
             border-radius: 6px;
             font-size: 14px;
             font-weight: 500;
+            cursor: pointer;
             transition: 0.2s;
+            text-align: center;
         }
 
         .view-btn:hover {
             background-color: #4338ca;
         }
+
+        /* --- MODAL POPUP SYSTEM --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            max-width: 480px;
+            width: 90%;
+            position: relative;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15);
+            text-align: left;
+        }
+
+        .modal-content.large-grid {
+            max-width: 900px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .close-modal-btn {
+            position: absolute; top: 15px; right: 20px;
+            font-size: 28px; cursor: pointer; color: #64748b;
+            border: none; background: none; line-height: 1;
+        }
+
+        .close-modal-btn:hover { color: #1e293b; }
 
         /* --- FOOTER --- */
         footer {
@@ -271,23 +297,19 @@ $result = $conn->query($sql);
             margin-top: 60px;
         }
 
-        /* --- RESPONSIVE ADJUSTMENTS --- */
         @media(max-width: 1024px) {
             .main-layout {
                 grid-template-columns: 1fr;
-                padding: 120px 30px 40px;
-                gap: 40px;
+                padding: 120px 30px 40px; gap: 40px;
             }
-            nav {
-                padding: 18px 30px;
-            }
+            nav { padding: 18px 30px; }
         }
     </style>
 </head>
 <body>
 
     <nav>
-        <h2>EHBS</h2>
+        <h2>EVENT HALL BOOKING</h2>
         <ul>
             <li><a href="#">Home</a></li>
             <li><a href="about.php">About</a></li>
@@ -313,55 +335,95 @@ $result = $conn->query($sql);
                 <a href="auth/register.php">
                     <button class="book-btn">Book Now</button>
                 </a>
-                <a href="#featured-section">
-                    <button class="explore-btn">Explore Halls</button>
-                </a>
-            </div>
-
-            <div class="hero-image">
-                <img src="assets/images/hall.jpg" alt="Event Hall Display">
+                <button class="explore-btn" onclick="openExploreModal()">Explore Halls</button>
             </div>
         </section>
 
-        <section class="featured-halls" id="featured-section">
+        <section class="featured-halls">
             <h2>Featured Event Halls</h2>
             
             <div class="halls-grid">
-    <?php
-    // Check if there are any halls in the database
-    if ($result && $result->num_rows > 0) {
-        // Loop through each row of data
-        while($row = $result->fetch_assoc()) {
-            ?>
-            
-            <div class="hall-card">
-                <div class="hall-card-img"></div>
+                <?php
+                if ($result_featured && $result_featured->num_rows > 0) {
+                    while($row = $result_featured->fetch_assoc()) {
+                        $has_image = (!empty($row['image']) && file_exists('assets/images/' . $row['image'])) ? 1 : 0;
+                        $image_filename = $has_image ? $row['image'] : '';
+                        ?>
+                        
+                        <div class="hall-card">
+                            <div class="hall-card-img">
+                                <?php if ($has_image): ?>
+                                    <img src="assets/images/<?php echo $row['image']; ?>" alt="<?php echo htmlspecialchars($row['hall_name']); ?>">
+                                <?php endif; ?>
+                            </div>
 
-                <div class="hall-card-body">
-                    <div class="hall-title"><?php echo htmlspecialchars($row['hall_name']); ?></div>
-                    
-                    <div class="hall-capacity"><?php echo htmlspecialchars($row['hall_capacity']); ?> Guests</div>
-                    
-                    <div class="hall-price">RM <?php echo number_format($row['price'], 2); ?></div>
-                    
-                    <a href="hall-details.php?id=<?php echo $row['hall_id']; ?>" class="view-btn">View Details</a>
-                </div>
+                            <div class="hall-card-body">
+                                <div class="hall-title"><?php echo htmlspecialchars($row['hall_name']); ?></div>
+                                
+                                <button type="button" class="view-btn" onclick="openHallDetails(
+                                    '<?php echo mysqli_real_escape_string($conn, $row['hall_name']); ?>',
+                                    '<?php echo $row['hall_capacity']; ?>',
+                                    '<?php echo number_format($row['price'], 2); ?>',
+                                    '<?php echo $image_filename; ?>'
+                                )">View Details</button>
+                            </div>
+                        </div>
+
+                        <?php
+                    }
+                } else {
+                    echo "<p style='grid-column: 1/-1; color:#64748b;'>No halls available at the moment.</p>";
+                }
+                ?>
             </div>
-
-            <?php
-        }
-    } else {
-        // Fallback if database table is empty
-        echo "<p style='grid-column: 1/-1; color:#64748b;'>No halls available at the moment.</p>";
-    }
-    
-    // Close connection after rendering
-    $conn->close();
-    ?>
-</div>
         </section>
 
     </main>
+
+    <div id="exploreModal" class="modal-overlay">
+        <div class="modal-content large-grid">
+            <button class="close-modal-btn" onclick="closeExploreModal()">&times;</button>
+            <h2 style="font-size: 26px; color: #1e293b; margin-bottom: 25px;">All Available Event Halls</h2>
+            
+            <div class="halls-grid">
+                <?php if (!empty($all_halls_data)): ?>
+                    <?php foreach($all_halls_data as $hall): ?>
+                        <?php 
+                        $has_img = (!empty($hall['image']) && file_exists('assets/images/' . $hall['image'])) ? 1 : 0; 
+                        $img_file = $has_img ? $hall['image'] : '';
+                        ?>
+                        <div class="hall-card">
+                            <div class="hall-card-img">
+                                <?php if ($has_img): ?>
+                                    <img src="assets/images/<?php echo $hall['image']; ?>" alt="<?php echo htmlspecialchars($hall['hall_name']); ?>">
+                                <?php endif; ?>
+                            </div>
+                            <div class="hall-card-body">
+                                <div class="hall-title"><?php echo htmlspecialchars($hall['hall_name']); ?></div>
+                                
+                                <button type="button" class="view-btn" onclick="openHallDetails(
+                                    '<?php echo mysqli_real_escape_string($conn, $hall['hall_name']); ?>',
+                                    '<?php echo $hall['hall_capacity']; ?>',
+                                    '<?php echo number_format($hall['price'], 2); ?>',
+                                    '<?php echo $img_file; ?>'
+                                )">View Details</button>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <p style="grid-column: 1/-1; color:#64748b;">No halls available at the moment.</p>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <div id="detailsModal" class="modal-overlay" style="z-index: 1100;">
+        <div class="modal-content">
+            <button class="close-modal-btn" onclick="closeHallDetails()">&times;</button>
+            <div id="modalDynamicBody">
+                </div>
+        </div>
+    </div>
 
     <footer>
         <div class="footer-nav">
@@ -372,5 +434,52 @@ $result = $conn->query($sql);
         <p>© 2026 Event Hall Booking System | All Rights Reserved</p>
     </footer>
 
+    <script>
+    function openExploreModal() {
+        document.getElementById('exploreModal').style.display = 'flex';
+    }
+    function closeExploreModal() {
+        document.getElementById('exploreModal').style.display = 'none';
+    }
+
+    function openHallDetails(name, capacity, price, image) {
+        let displayContent = '';
+        
+        if (image !== '') {
+            displayContent += `<img src="assets/images/${image}" style="width:100%; height:220px; object-fit:cover; border-radius:10px; margin-bottom:18px;">`;
+        } else {
+            displayContent += `<div style="width:100%; height:220px; background:linear-gradient(to bottom, #e0f2fe, #bcbeff); border-radius:10px; margin-bottom:18px;"></div>`;
+        }
+        
+        displayContent += `
+            <h3 style="font-size:24px; font-weight:600; color:#1e293b; margin-bottom:12px;">${name}</h3>
+            <p style="font-size:15px; color:#64748b; margin-bottom:8px;"><strong>Maximum Capacity:</strong> ${capacity} pax</p>
+            <p style="font-size:18px; font-weight:600; color:#4f46e5; margin-bottom:24px;">Rental Price: RM ${price}</p>
+            <a href="auth/register.php" style="text-decoration:none; display:block; background-color:#4f46e5; color:white; text-align:center; padding:12px; border-radius:8px; font-weight:600; transition:0.2s;" onmouseover="this.style.backgroundColor='#4338ca'" onmouseout="this.style.backgroundColor='#4f46e5'">
+                Book Venue Now
+            </a>
+        `;
+        
+        document.getElementById('modalDynamicBody').innerHTML = displayContent;
+        document.getElementById('detailsModal').style.display = 'flex';
+    }
+
+    function closeHallDetails() {
+        document.getElementById('detailsModal').style.display = 'none';
+    }
+
+    window.onclick = function(event) {
+        let exploreModal = document.getElementById('exploreModal');
+        let detailsModal = document.getElementById('detailsModal');
+        
+        if (event.target === exploreModal) {
+            closeExploreModal();
+        }
+        if (event.target === detailsModal) {
+            closeHallDetails();
+        }
+    }
+    </script>
 </body>
 </html>
+<?php $conn->close(); ?>

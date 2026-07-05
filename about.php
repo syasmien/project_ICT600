@@ -165,7 +165,7 @@
 <body>
 
     <nav>
-        <h2>EHBS</h2>
+        <h2>EVENT HALL BOOKING</h2>
         <ul>
             <li><a href="index.php">Home</a></li>
             <li><a href="about.php" style="color: #4f46e5;">About</a></li>
@@ -204,7 +204,7 @@
         </section>
 
         <section class="side-image">
-            <img src="assets/images/hall.jpg" alt="About Our Venues" onerror="this.style.background='#bcbeff'; this.style.height='350px';">
+            <img src="assets/images/office.png" alt="About Our Venues" onerror="this.style.background='#bcbeff'; this.style.height='350px';">
         </section>
     </main>
 
