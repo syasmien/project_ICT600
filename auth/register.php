@@ -194,6 +194,33 @@ if (isset($_POST['register'])) {
             text-align: center;
             font-weight: 500;
         }
+
+        /* Real-time validation specific visual hints */
+        .validation-list {
+            margin-top: 8px;
+            padding-left: 0;
+            list-style: none;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .validation-list li {
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s ease;
+        }
+
+        .validation-list li.valid {
+            color: #10b981;
+        }
+
+        .match-hint {
+            margin-top: 6px;
+            font-size: 13px;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -233,12 +260,20 @@ if (isset($_POST['register'])) {
 
         <div class="form-group">
             <label>Password</label>
-            <input type="password" name="password" placeholder="Create a password" required>
+            <input type="password" id="password" name="password" placeholder="Create a password" required>
+            <ul class="validation-list" id="password-checklist">
+                <li id="length-check">❌ At least 8 characters</li>
+                <li id="upper-check">❌ One uppercase letter</li>
+                <li id="lower-check">❌ One lowercase letter</li>
+                <li id="num-check">❌ One number</li>
+                <li id="special-check">❌ One special character</li>
+            </ul>
         </div>
 
         <div class="form-group">
             <label>Confirm Password</label>
-            <input type="password" name="confirm_password" placeholder="Confirm your password" required>
+            <input type="password" id="confirm_password" name="confirm_password" placeholder="Confirm your password" required>
+            <div id="match-status" class="match-hint"></div>
         </div>
 
         <button type="submit" name="register">Sign Up</button>
@@ -254,6 +289,93 @@ if (isset($_POST['register'])) {
     <?php endif; ?>
 
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const passwordInput = document.getElementById("password");
+    const confirmInput = document.getElementById("confirm_password");
+
+    const lengthCheck = document.getElementById("length-check");
+    const upperCheck = document.getElementById("upper-check");
+    const lowerCheck = document.getElementById("lower-check");
+    const numCheck = document.getElementById("num-check");
+    const specialCheck = document.getElementById("special-check");
+    const matchStatus = document.getElementById("match-status");
+
+    function validatePassword() {
+        const val = passwordInput.value;
+
+        // 1. Length rule
+        if (val.length >= 8) {
+            lengthCheck.innerHTML = "✅ At least 8 characters";
+            lengthCheck.classList.add("valid");
+        } else {
+            lengthCheck.innerHTML = "❌ At least 8 characters";
+            lengthCheck.classList.remove("valid");
+        }
+
+        // 2. Uppercase rule
+        if (/[A-Z]/.test(val)) {
+            upperCheck.innerHTML = "✅ One uppercase letter";
+            upperCheck.classList.add("valid");
+        } else {
+            upperCheck.innerHTML = "❌ One uppercase letter";
+            upperCheck.classList.remove("valid");
+        }
+
+        // 3. Lowercase rule
+        if (/[a-z]/.test(val)) {
+            lowerCheck.innerHTML = "✅ One lowercase letter";
+            lowerCheck.classList.add("valid");
+        } else {
+            lowerCheck.innerHTML = "❌ One lowercase letter";
+            lowerCheck.classList.remove("valid");
+        }
+
+        // 4. Number rule
+        if (/[0-9]/.test(val)) {
+            numCheck.innerHTML = "✅ One number";
+            numCheck.classList.add("valid");
+        } else {
+            numCheck.innerHTML = "❌ One number";
+            numCheck.classList.remove("valid");
+        }
+
+        // 5. Special character rule
+        if (/[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(val)) {
+            specialCheck.innerHTML = "✅ One special character";
+            specialCheck.classList.add("valid");
+        } else {
+            specialCheck.innerHTML = "❌ One special character";
+            specialCheck.classList.remove("valid");
+        }
+
+        // Re-verify confirmation matching if something is typed there
+        validateConfirmPassword();
+    }
+
+    function validateConfirmPassword() {
+        const passVal = passwordInput.value;
+        const confirmVal = confirmInput.value;
+
+        if (confirmVal === "") {
+            matchStatus.innerHTML = "";
+            return;
+        }
+
+        if (passVal === confirmVal) {
+            matchStatus.innerHTML = "✅ Passwords match";
+            matchStatus.style.color = "#10b981";
+        } else {
+            matchStatus.innerHTML = "❌ Passwords do not match";
+            matchStatus.style.color = "#ef4444";
+        }
+    }
+
+    passwordInput.addEventListener("input", validatePassword);
+    confirmInput.addEventListener("input", validateConfirmPassword);
+});
+</script>
 
 </body>
 </html>
